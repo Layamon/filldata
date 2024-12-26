@@ -41,7 +41,17 @@ pub mod generator {
             time_string
         }
         pub fn get_json(&mut self, _tid: &u32) -> String {
-            "{a:1, b:2}".to_string()
+            let mut ret = String::from('{');
+            for v in 0..10 {
+                let key = self.get_text(3, _tid);
+                ret.push_str(&format!("\"{}\":{},", key, v));
+            }
+            if let Some(_) = ret.pop() {
+                // Replace the last character with '}'
+                ret.push('}');
+            }
+
+            ret
         }
     }
 }

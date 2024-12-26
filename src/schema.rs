@@ -35,7 +35,8 @@ pub static TYPE_MAP: phf::Map<u32, TypeInfo> = phf_map! {
      1114u32 => TypeInfo::Time(1114),
      1184u32 => TypeInfo::Time(1184),
      1082u32 => TypeInfo::Time(1082),
-     3802u32 => TypeInfo::Json(16),
+     3802u32 => TypeInfo::Json(3802),
+     114u32 => TypeInfo::Json(114),
 };
 
 #[derive(Debug, Default)]
@@ -78,7 +79,7 @@ impl<'a> Table<'a> {
             match &attr.type_info {
                 TypeInfo::Text(tid) => {
                     // varchar length = typmod - 4 in pg, 500 for text type.
-                    let mut maxlength: i32 = 500;
+                    let mut maxlength: i32 = 5;
                     if attr.typmod > 0 {
                         maxlength = attr.typmod - 4;
                     }
@@ -93,7 +94,9 @@ impl<'a> Table<'a> {
                 TypeInfo::Time(tid) => {
                     ret.push_str(&Self::quote_val('\'', &self.generator.get_time(tid)))
                 }
-                TypeInfo::Json(tid) => ret.push_str(&self.generator.get_json(tid)),
+                TypeInfo::Json(tid) => {
+                    ret.push_str(&Self::quote_val('\'', &self.generator.get_json(tid)))
+                }
             };
 
             if idx == self.tids.len() - 1 {
