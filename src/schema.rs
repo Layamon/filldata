@@ -39,27 +39,25 @@ pub static TYPE_MAP: phf::Map<u32, TypeInfo> = phf_map! {
      114u32 => TypeInfo::Json(114),
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AttrInfo {
     pub attname: String,
     pub type_info: TypeInfo,
     pub typmod: i32,
 }
 
-#[derive(Debug, Default)]
-pub struct Table<'a> {
-    pub tablename: &'a str,
+#[derive(Debug, Default, Clone)]
+pub struct Table {
+    pub tablename: String,
     pub tids: Vec<AttrInfo>,
-
-    generator: Generator,
 }
 
-impl<'a> Table<'a> {
-    pub fn generate_insertbatch(&mut self, args: &Args) -> String {
+impl Table {
+    pub fn generate_insertbatch(&self, args: &Args, generator: &mut Generator) -> String {
         let mut n = args.batch;
         let mut insert_stmt = format!("insert into {} values ", self.tablename);
         while n > 0 {
-            insert_stmt.push_str(&self.generate_one_value(args));
+            insert_stmt.push_str(&self.generate_one_value(args, generator));
             if n > 1 {
                 insert_stmt.push(',');
             }
@@ -71,7 +69,7 @@ impl<'a> Table<'a> {
 
         insert_stmt
     }
-    pub fn generate_one_value(&mut self, _args: &Args) -> String {
+    pub fn generate_one_value(&self, _args: &Args, generator: &mut Generator) -> String {
         let mut ret = String::new();
 
         ret.push('(');
@@ -83,19 +81,16 @@ impl<'a> Table<'a> {
                     if attr.typmod > 0 {
                         maxlength = attr.typmod - 4;
                     }
-                    ret.push_str(&Self::quote_val(
-                        '\'',
-                        &self.generator.get_text(maxlength, tid),
-                    ))
+                    ret.push_str(&Self::quote_val('\'', &generator.get_text(maxlength, tid)))
                 }
-                TypeInfo::Int(tid) => ret.push_str(&self.generator.get_int(tid)),
-                TypeInfo::Float(tid) => ret.push_str(&self.generator.get_float(tid)),
-                TypeInfo::Bool(tid) => ret.push_str(&self.generator.get_bool(tid)),
+                TypeInfo::Int(tid) => ret.push_str(&generator.get_int(tid)),
+                TypeInfo::Float(tid) => ret.push_str(&generator.get_float(tid)),
+                TypeInfo::Bool(tid) => ret.push_str(&generator.get_bool(tid)),
                 TypeInfo::Time(tid) => {
-                    ret.push_str(&Self::quote_val('\'', &self.generator.get_time(tid)))
+                    ret.push_str(&Self::quote_val('\'', &generator.get_time(tid)))
                 }
                 TypeInfo::Json(tid) => {
-                    ret.push_str(&Self::quote_val('\'', &self.generator.get_json(tid)))
+                    ret.push_str(&Self::quote_val('\'', &generator.get_json(tid)))
                 }
             };
 

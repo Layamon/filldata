@@ -1,30 +1,41 @@
 use postgres::{Client, NoTls};
+use std::thread;
 
-pub fn load(args: &crate::Args, rel_info: &mut crate::Table) {
+use crate::typed_generator::generator::Generator;
+
+pub fn load(args: crate::Args, rel_info: crate::Table) {
     let database_url = format!(
         "host={} user={} port={} dbname={}",
         args.hostname, args.user, args.port, args.dbname
     );
 
-    let mut client = match Client::connect(database_url.as_str(), NoTls) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1)
-        }
-    };
-
-    let mut remain_rows = args.rows;
-    while remain_rows > 0 {
-        let insert_stmt = rel_info.generate_insertbatch(&args);
-        let rows_affected = match client.execute(&insert_stmt, &[]) {
-            Ok(rows) => rows,
+    let database_url_clone = database_url.clone();
+    let ri_clone = rel_info.clone();
+    let handle = thread::spawn(move || {
+        let mut client = match Client::connect(database_url_clone.as_str(), NoTls) {
+            Ok(c) => c,
             Err(e) => {
                 eprintln!("{}", e);
-                0
+                std::process::exit(1)
             }
         };
 
-        remain_rows -= rows_affected as u32;
-    }
+        let mut generator: Generator = Generator::default();
+
+        let mut remain_rows = args.rows;
+        while remain_rows > 0 {
+            let insert_stmt = ri_clone.generate_insertbatch(&args, &mut generator);
+            let rows_affected = match client.execute(&insert_stmt, &[]) {
+                Ok(rows) => rows,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    0
+                }
+            };
+
+            remain_rows -= rows_affected as u32;
+        }
+    });
+
+    handle.join().unwrap();
 }

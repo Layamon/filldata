@@ -48,10 +48,9 @@ impl std::fmt::Display for LoadMode {
 #[command(
     author = "Layamon <sdwhlym@gmail.com>",
     version = "0.1.0",
-    about = "This is a tools for generating
-             random data for random table schema 
-             in PostgreSQL"
+    about = "This is a tools for generating random data for random table schema in PostgreSQL"
 )]
+
 struct Args {
     #[arg(long, default_value = "localhost")]
     hostname: String,
@@ -73,8 +72,8 @@ struct Args {
     rows: u32,
     #[arg(long, default_value_t = 10)]
     batch: u32,
-    #[arg(value_enum, default_value_t = LoadMode::SingleThread)]
-    load_mode: LoadMode,
+    #[arg(long, value_enum, default_value_t = LoadMode::SingleThread)]
+    loadmode: LoadMode,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -95,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut client = Client::connect(database_url.as_str(), NoTls)?;
     let mut rel_info = Table::default();
-    rel_info.tablename = &args.table;
+    rel_info.tablename = args.table.clone();
     for row in client.query(query.as_str(), &[])? {
         let mut attr_info = AttrInfo::default();
         attr_info.attname = row.get("attname");
@@ -114,9 +113,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     client.close()?;
 
-    match args.load_mode {
+    match args.loadmode {
         LoadMode::SingleThread => crate::st_load::load(&args, &mut rel_info),
-        LoadMode::MultiThread => crate::mt_load::load(&args, &mut rel_info),
+        LoadMode::MultiThread => crate::mt_load::load(args, rel_info.clone()),
         LoadMode::Async => crate::async_load::load(&args, &mut rel_info),
     }
 

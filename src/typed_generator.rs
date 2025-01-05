@@ -1,6 +1,7 @@
 pub mod generator {
     use chrono::{DateTime, Duration, Utc};
-    use rand::{Rng, RngCore};
+    use rand::Rng;
+    use rand::RngCore;
     use std::u32;
 
     #[derive(Debug, Default)]
