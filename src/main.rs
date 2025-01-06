@@ -16,12 +16,7 @@ enum LoadMode {
 }
 
 #[derive(Parser, Debug)]
-#[command(
-    author = "Layamon <sdwhlym@gmail.com>",
-    version = "0.1.0",
-    about = "This is a tools for generating random data for random table schema in PostgreSQL"
-)]
-
+#[clap(author, version, about)]
 struct Args {
     #[arg(long, default_value = "localhost")]
     hostname: String,

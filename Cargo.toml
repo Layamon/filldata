@@ -2,6 +2,13 @@
 name = "filldata"
 version = "0.1.0"
 edition = "2021"
+authors = ["Layamon <sdwhlym@gmail.com>"]
+description = "This is a tools for generating random data for random table schema in PostgreSQL."
+homepage = "https://github.com/Layamon/filldata"
+repository = "https://github.com/Layamon/filldata"
+readme = "README.md"
+keywords = ["tools", "PostgreSQL", "github"]
+categories = ["command-line-utilities for database"]
 
 [dependencies]
 postgres = "0.19"
