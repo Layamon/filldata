@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use clap::{Parser, ValueEnum};
 use postgres::{Client, NoTls};
 use schema::{AttrInfo, Table, TYPE_MAP};
@@ -15,33 +13,6 @@ enum LoadMode {
     SingleThread,
     MultiThread,
     Async,
-}
-
-impl FromStr for LoadMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "st" => Ok(LoadMode::SingleThread),
-            "mt" => Ok(LoadMode::MultiThread),
-            "async" => Ok(LoadMode::Async),
-            _ => Err(format!("Invalid value for LoadMode: {}", s)),
-        }
-    }
-}
-
-impl std::fmt::Display for LoadMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                LoadMode::SingleThread => "SingleThread".to_string(),
-                LoadMode::MultiThread => "MultiThread".to_string(),
-                LoadMode::Async => "Async".to_string(),
-            }
-        )
-    }
 }
 
 #[derive(Parser, Debug)]
