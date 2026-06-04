@@ -9,33 +9,48 @@ pub fn load(args: crate::Args, rel_info: crate::Table) {
         args.hostname, args.user, args.port, args.dbname
     );
 
-    let database_url_clone = database_url.clone();
-    let ri_clone = rel_info.clone();
-    let handle = thread::spawn(move || {
-        let mut client = match Client::connect(database_url_clone.as_str(), NoTls) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("{}", e);
-                std::process::exit(1)
-            }
-        };
+    let n_threads = args.parallelnum.max(1) as usize;
+    let base_rows = args.rows / n_threads as u32;
+    let remainder = args.rows % n_threads as u32;
 
-        let mut generator: Generator = Generator::default();
+    let mut handles = Vec::with_capacity(n_threads);
 
-        let mut remain_rows = args.rows;
-        while remain_rows > 0 {
-            let insert_stmt = ri_clone.generate_insertbatch(&args, &mut generator);
-            let rows_affected = match client.execute(&insert_stmt, &[]) {
-                Ok(rows) => rows,
+    for i in 0..n_threads {
+        let thread_rows = base_rows + if (i as u32) < remainder { 1 } else { 0 };
+        let database_url_clone = database_url.clone();
+        let ri_clone = rel_info.clone();
+        let args_clone = args.clone();
+
+        let handle = thread::spawn(move || {
+            let mut client = match Client::connect(database_url_clone.as_str(), NoTls) {
+                Ok(c) => c,
                 Err(e) => {
                     eprintln!("{}", e);
-                    0
+                    std::process::exit(1)
                 }
             };
 
-            remain_rows -= rows_affected as u32;
-        }
-    });
+            let mut generator: Generator = Generator::default();
 
-    handle.join().unwrap();
+            let mut remain_rows = thread_rows;
+            while remain_rows > 0 {
+                let insert_stmt = ri_clone.generate_insertbatch(&args_clone, &mut generator);
+                let rows_affected = match client.execute(&insert_stmt, &[]) {
+                    Ok(rows) => rows,
+                    Err(e) => {
+                        eprintln!("{}", e);
+                        0
+                    }
+                };
+
+                remain_rows -= rows_affected as u32;
+            }
+        });
+
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }

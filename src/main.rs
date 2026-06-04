@@ -15,7 +15,7 @@ enum LoadMode {
     Async,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(author, version, about)]
 struct Args {
     #[arg(long, default_value = "localhost")]
