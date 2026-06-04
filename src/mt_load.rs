@@ -34,16 +34,12 @@ pub fn load(args: crate::Args, rel_info: crate::Table) {
 
             let mut remain_rows = thread_rows;
             while remain_rows > 0 {
-                let insert_stmt = ri_clone.generate_insertbatch(&args_clone, &mut generator);
-                let rows_affected = match client.execute(&insert_stmt, &[]) {
-                    Ok(rows) => rows,
-                    Err(e) => {
-                        eprintln!("{}", e);
-                        0
-                    }
-                };
-
-                remain_rows -= rows_affected as u32;
+                let count = args_clone.batch.min(remain_rows);
+                let insert_stmt = ri_clone.generate_insertbatch(&args_clone, &mut generator, count);
+                if let Err(e) = client.execute(&insert_stmt, &[]) {
+                    eprintln!("{}", e);
+                }
+                remain_rows -= count;
             }
         });
 

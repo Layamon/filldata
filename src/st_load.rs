@@ -20,15 +20,11 @@ pub fn load(args: &crate::Args, rel_info: &mut crate::Table) {
 
     let mut remain_rows = args.rows;
     while remain_rows > 0 {
-        let insert_stmt = rel_info.generate_insertbatch(&args, &mut generator);
-        let rows_affected = match client.execute(&insert_stmt, &[]) {
-            Ok(rows) => rows,
-            Err(e) => {
-                eprintln!("{}", e);
-                0
-            }
-        };
-
-        remain_rows -= rows_affected as u32;
+        let count = args.batch.min(remain_rows);
+        let insert_stmt = rel_info.generate_insertbatch(&args, &mut generator, count);
+        if let Err(e) = client.execute(&insert_stmt, &[]) {
+            eprintln!("{}", e);
+        }
+        remain_rows -= count;
     }
 }

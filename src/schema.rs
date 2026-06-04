@@ -53,8 +53,8 @@ pub struct Table {
 }
 
 impl Table {
-    pub fn generate_insertbatch(&self, args: &Args, generator: &mut Generator) -> String {
-        let mut n = args.batch;
+    pub fn generate_insertbatch(&self, args: &Args, generator: &mut Generator, count: u32) -> String {
+        let mut n = count;
         let mut insert_stmt = format!("insert into {} values ", self.tablename);
         while n > 0 {
             insert_stmt.push_str(&self.generate_one_value(args, generator));
