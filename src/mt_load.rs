@@ -1,3 +1,6 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
 use postgres::{Client, NoTls};
 use std::thread;
 
@@ -13,6 +16,8 @@ pub fn load(args: crate::Args, rel_info: crate::Table) {
     let base_rows = args.rows / n_threads as u32;
     let remainder = args.rows % n_threads as u32;
 
+    let unique_seq = Arc::new(AtomicU64::new(0));
+
     let mut handles = Vec::with_capacity(n_threads);
 
     for i in 0..n_threads {
@@ -20,6 +25,7 @@ pub fn load(args: crate::Args, rel_info: crate::Table) {
         let database_url_clone = database_url.clone();
         let ri_clone = rel_info.clone();
         let args_clone = args.clone();
+        let seq_clone = Arc::clone(&unique_seq);
 
         let handle = thread::spawn(move || {
             let mut client = match Client::connect(database_url_clone.as_str(), NoTls) {
@@ -35,7 +41,8 @@ pub fn load(args: crate::Args, rel_info: crate::Table) {
             let mut remain_rows = thread_rows;
             while remain_rows > 0 {
                 let count = args_clone.batch.min(remain_rows);
-                let insert_stmt = ri_clone.generate_insertbatch(&args_clone, &mut generator, count);
+                let insert_stmt =
+                    ri_clone.generate_insertbatch(&args_clone, &mut generator, count, &seq_clone);
                 if let Err(e) = client.execute(&insert_stmt, &[]) {
                     eprintln!("{}", e);
                 }

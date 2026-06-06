@@ -40,6 +40,8 @@ struct Args {
     batch: u32,
     #[arg(long, value_enum, default_value_t = LoadMode::SingleThread)]
     loadmode: LoadMode,
+    #[arg(long, default_value = "")]
+    unique_key: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -77,6 +79,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         rel_info.tids.push(attr_info);
     }
+
+    if !args.unique_key.is_empty() {
+        for col in args.unique_key.split(',') {
+            let col = col.trim().to_string();
+            if !col.is_empty() {
+                rel_info.unique_keys.push(col);
+            }
+        }
+    }
+
     client.close()?;
 
     match args.loadmode {

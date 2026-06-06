@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use crate::typed_generator::generator::Generator;
 use crate::Args;
 
@@ -50,14 +53,56 @@ pub struct AttrInfo {
 pub struct Table {
     pub tablename: String,
     pub tids: Vec<AttrInfo>,
+    pub unique_keys: Vec<String>,
 }
 
 impl Table {
-    pub fn generate_insertbatch(&self, args: &Args, generator: &mut Generator, count: u32) -> String {
+    fn is_unique_column(&self, colname: &str) -> bool {
+        self.unique_keys.iter().any(|k| k == colname)
+    }
+
+    fn get_unique_value(
+        &self,
+        attr: &AttrInfo,
+        seq: u64,
+    ) -> Option<String> {
+        match &attr.type_info {
+            TypeInfo::Text(_) => {
+                let max_len = if attr.typmod > 0 {
+                    (attr.typmod - 4) as usize
+                } else {
+                    500
+                };
+                let mut val = format!("u{}", seq);
+                if val.len() > max_len {
+                    val.truncate(max_len);
+                }
+                Some(Self::quote_val('\'', &val))
+            }
+            TypeInfo::Int(_) => Some(seq.to_string()),
+            TypeInfo::Float(_) => Some(format!("{}.0", seq)),
+            TypeInfo::Bool(_) => Some(if seq % 2 == 0 { "true" } else { "false" }.to_string()),
+            TypeInfo::Time(_) => {
+                let base = Generator::default_time_string();
+                Some(Self::quote_val('\'', &format!("{}_{}", base, seq)))
+            }
+            TypeInfo::Json(_) => Some(Self::quote_val('\'', &format!("{{\"seq\":{}}}", seq))),
+        }
+    }
+}
+
+impl Table {
+    pub fn generate_insertbatch(
+        &self,
+        args: &Args,
+        generator: &mut Generator,
+        count: u32,
+        unique_seq: &AtomicU64,
+    ) -> String {
         let mut n = count;
         let mut insert_stmt = format!("insert into {} values ", self.tablename);
         while n > 0 {
-            insert_stmt.push_str(&self.generate_one_value(args, generator));
+            insert_stmt.push_str(&self.generate_one_value(args, generator, unique_seq));
             if n > 1 {
                 insert_stmt.push(',');
             }
@@ -69,30 +114,41 @@ impl Table {
 
         insert_stmt
     }
-    pub fn generate_one_value(&self, _args: &Args, generator: &mut Generator) -> String {
+    pub fn generate_one_value(
+        &self,
+        _args: &Args,
+        generator: &mut Generator,
+        unique_seq: &AtomicU64,
+    ) -> String {
         let mut ret = String::new();
 
         ret.push('(');
         for (idx, attr) in self.tids.iter().enumerate() {
-            match &attr.type_info {
-                TypeInfo::Text(tid) => {
-                    // varchar length = typmod - 4 in pg, 500 for text type.
-                    let mut maxlength: i32 = 5;
-                    if attr.typmod > 0 {
-                        maxlength = attr.typmod - 4;
+            let val = if self.is_unique_column(&attr.attname) {
+                let seq = unique_seq.fetch_add(1, Ordering::Relaxed);
+                self.get_unique_value(attr, seq).unwrap_or_default()
+            } else {
+                match &attr.type_info {
+                    TypeInfo::Text(tid) => {
+                        let mut maxlength: i32 = 5;
+                        if attr.typmod > 0 {
+                            maxlength = attr.typmod - 4;
+                        }
+                        Self::quote_val('\'', &generator.get_text(maxlength, tid))
                     }
-                    ret.push_str(&Self::quote_val('\'', &generator.get_text(maxlength, tid)))
-                }
-                TypeInfo::Int(tid) => ret.push_str(&generator.get_int(tid)),
-                TypeInfo::Float(tid) => ret.push_str(&generator.get_float(tid)),
-                TypeInfo::Bool(tid) => ret.push_str(&generator.get_bool(tid)),
-                TypeInfo::Time(tid) => {
-                    ret.push_str(&Self::quote_val('\'', &generator.get_time(tid)))
-                }
-                TypeInfo::Json(tid) => {
-                    ret.push_str(&Self::quote_val('\'', &generator.get_json(tid)))
+                    TypeInfo::Int(tid) => generator.get_int(tid),
+                    TypeInfo::Float(tid) => generator.get_float(tid),
+                    TypeInfo::Bool(tid) => generator.get_bool(tid),
+                    TypeInfo::Time(tid) => {
+                        Self::quote_val('\'', &generator.get_time(tid))
+                    }
+                    TypeInfo::Json(tid) => {
+                        Self::quote_val('\'', &generator.get_json(tid))
+                    }
                 }
             };
+
+            ret.push_str(&val);
 
             if idx == self.tids.len() - 1 {
                 ret.push(')');
